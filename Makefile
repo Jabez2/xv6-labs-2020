@@ -150,6 +150,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_sleep\
+	$U/_copy\
 
 
 ifeq ($(LAB),syscall)
