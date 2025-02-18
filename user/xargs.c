@@ -11,8 +11,8 @@
 #include "kernel/fs.h"
 
 // 执行某个程序
-void run(char *program, char *args[]) {
-    if (fork() == 0) { // 子进程执行
+void run(char *program, char const *args[]) {
+    if (fork() == 0) { // 创建子进程并传入合并后的参数数组
         exec(program, args);
         exit(0);
     }
@@ -26,16 +26,16 @@ int main(int argc, char *argv[]) {
 
     int arg_count = 0;
 
-    // 将命令行参数 (argv) 复制到 args 数组中
+    // 将命令行参数 (argv) 复制到 args 数组中 命令行参数即xargs 后面所跟的参数，argv[0]是文件名，argv[1]是调用的子程序的程序名，后面的为子程序所用到的参数，先放入到重组后的参数数组的开头部分
     for (int i = 1; i < argc; i++) {
         args[arg_count] = argv[i];
         arg_count++;
     }
 
-    while (read(0, current_char, 1) != 0) {  // 读取输入字符
-        if (*current_char == ' ' || *current_char == '\n') {
-            *current_char = '\0';  // 用 \0 结束当前参数
-            args[arg_count] = start_of_arg;  // 保存当前参数
+    while (read(0, current_char, 1) != 0) {  // 读取输入字符 文件描述符0，代表从标准输入读入数据，并存储到current_char中，每次读取一个字节
+        if (*current_char == ' ' || *current_char == '\n') { //当读到空格或换行符时，说明当前参数结束了，需要对这个参数进行保存
+            *current_char = '\0';  // 用 \0 结束当前参数  在C语言中，字符串实际上就是以'\0'(空字符)结尾的字符数组，而 char* 类型的指针指向这个字符数组的首地址。C语言就是通过这个特点来处理字符串的。
+            args[arg_count] = start_of_arg;  // 保存当前参数 
             arg_count++;
             start_of_arg = current_char + 1;  // 下一个参数的开始
 
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
         current_char++;
     }
 
-    if (arg_count > 0) {  // 如果最后一行不是空的
+    if (arg_count > 0) {  // 如果标准输入流没有以换行符"\n"结尾，但此时已经没有读入了，直接令所读到的字符串结尾为"\0"，以当前参数执行子程序
         *current_char = '\0';  // 结束最后一个参数
         args[arg_count] = 0;   // 参数列表结尾
         run(argv[1], args);    // 执行最后一行命令
