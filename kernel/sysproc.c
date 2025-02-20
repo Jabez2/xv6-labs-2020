@@ -95,3 +95,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+uint64
+sys_trace(void)  //实现内核调用
+{
+  // 获取系统调用的参数
+  argint(0, &(myproc()->trace_mask)); //读取用户空间的第0个参数，存入trace_mask
+  return 0;
+}

@@ -126,7 +126,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->trace_mask = 0;  // 为 syscall_trace 设置一个 0 的默认值 防止在刚开始make qemu的时候产生系统调用跟踪输出
   return p;
 }
 
@@ -259,8 +259,8 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
-  struct proc *p = myproc();
+  struct proc *np; //子进程
+  struct proc *p = myproc(); //父进程
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -290,7 +290,8 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
-
+   //将trace_mask拷贝到子进程
+  np->trace_mask = p->trace_mask;
   pid = np->pid;
 
   np->state = RUNNABLE;

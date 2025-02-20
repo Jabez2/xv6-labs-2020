@@ -23,7 +23,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-
+int trace(int); //添加系统调用函数原型
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
