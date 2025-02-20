@@ -1,6 +1,6 @@
 struct stat;
 struct rtcdate;
-
+struct sysinfo; //声明sysinfo结构体 使得用户程序可以使用这个结构体
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -24,6 +24,8 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int trace(int); //添加系统调用函数原型
+int sysinfo(struct sysinfo *);  //声明sysinfo系统调用
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

@@ -105,8 +105,10 @@ extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
+extern uint64 sys_sysinfo(void); //全局声明sysinfo系统调用处理函数
 
-static uint64 (*syscalls[])(void) = {
+
+static uint64 (*syscalls[])(void) = { // 函数指针数组 通过系统调用号来对应相应的系统调用函数[系统调用编号]
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
 [SYS_wait]    sys_wait,
@@ -129,9 +131,10 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
+[SYS_sysinfo] sys_sysinfo,
 };
 
-const char *syscall_names[] = {
+const char *syscall_names[] = { //将系统编号与系统调用字符串对应，用于打印相关信息
 [SYS_fork]    "fork",
 [SYS_exit]    "exit",
 [SYS_wait]    "wait",
@@ -154,13 +157,14 @@ const char *syscall_names[] = {
 [SYS_mkdir]   "mkdir",
 [SYS_close]   "close",
 [SYS_trace]   "trace",
+[SYS_sysinfo] "sysinfo",
 };
 
 void
-syscall(void)
+syscall(void) //所有系统调用将统一到这里进行处理
 {
   int num;
-  struct proc *p = myproc();
+  struct proc *p = myproc(); //指向当前的进程
 
   num = p->trapframe->a7; //从寄存器a7中读取系统调用号
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) { //当系统调用号合理的时候

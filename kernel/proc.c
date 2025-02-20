@@ -694,3 +694,13 @@ procdump(void)
     printf("\n");
   }
 }
+// 统计处于活动状态的进程数
+void
+kama_procnum(uint64* dst) {
+    *dst = 0; //初始化目标值为0
+    struct proc* p;
+    for (p = proc;p < &proc[NPROC];p++) {  //遍历进程表  p=proc proc是一个全局数组
+        if (p->state != UNUSED) //当进程状态处于使用时
+            (*dst)++;  //值加1 dst地址指向的值加1
+    }
+}

@@ -19,8 +19,8 @@ struct run {
 };
 
 struct {
-  struct spinlock lock;
-  struct run *freelist;
+  struct spinlock lock; //锁
+  struct run *freelist; //空闲内存链表
 } kmem;
 
 void
@@ -79,4 +79,17 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+//获取空闲内存
+void kama_freebytes(uint64* dst) {
+  *dst = 0; //初始化目标值为0
+  struct run* p = kmem.freelist; //获取 空闲内存链表的头节点
+
+  acquire(&kmem.lock);		// 加锁保证线程安全
+  while (p) { //遍历头节点
+      *dst += PGSIZE;			// 统计空闲字节数 ，每个空闲页贡献PGSIZE个字节
+      p = p->next;  //指向下一个结点
+  }
+  release(&kmem.lock); //释放锁
 }

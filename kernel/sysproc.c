@@ -6,7 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
-
+#include "sysinfo.h"
 uint64
 sys_exit(void)
 {
@@ -96,9 +96,27 @@ sys_uptime(void)
   return xticks;
 }
 uint64
-sys_trace(void)  //实现内核调用
+sys_trace(void)  //实现内核调用  具体的系统调用函数
 {
   // 获取系统调用的参数
   argint(0, &(myproc()->trace_mask)); //读取用户空间的第0个参数，存入trace_mask
   return 0;
+}
+
+uint64
+sys_sysinfo(void) //收集系统信息 打印当前空闲内存以及进程数量
+{
+  struct sysinfo info; //创建系统信息对象
+  kama_freebytes(&info.freemem);	// 获取空闲内存  传入该对象的成员的地址，函数内部会直接修改改地址所指向的值
+  kama_procnum(&info.nproc);		// 获取进程数量 同理
+
+  //获取用户虚拟地址  系统调用函数运行在内核态
+  uint64 dstaddr;
+  argaddr(0, &dstaddr);
+
+  //从内核空间拷贝数据到用户空间
+  if (copyout(myproc()->pagetable, dstaddr, (char*)&info, sizeof info) < 0)
+      return -1;
+
+    return 0;
 }
