@@ -19,13 +19,13 @@ extern char trampoline[]; // trampoline.S
  * create a direct-map page table for the kernel.
  */
 void
-kvminit()
+kvminit()  // 初始化内核页表 kernel_pagetable
 {
   kernel_pagetable = (pagetable_t) kalloc();
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);  // 
 
   // virtio mmio disk interface
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
@@ -69,7 +69,7 @@ kvminithart()
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
 pte_t *
-walk(pagetable_t pagetable, uint64 va, int alloc)
+walk(pagetable_t pagetable, uint64 va, int alloc) //三级页表遍历函数，根据虚拟地址查找PTE va:待查找的虚拟地址
 {
   if(va >= MAXVA)
     panic("walk");
@@ -439,4 +439,41 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// kernel/vm.c
+// 递归打印页表
+int kama_pgtblprint(pagetable_t pagetable, int depth) {
+    // there are 2^9 = 512 PTEs in a page table.
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+
+        if (pte & PTE_V) {      // 如果页表项有效，按格式打印页表项
+            printf("..");
+            for (int j = 0;j < depth;++j)
+                printf(" ..");
+            printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+
+
+            // 如果该节点不是叶节点，递归打印子节点
+            if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+                // this PTE points to a lower-level page table.
+                uint64 child = PTE2PA(pte);
+                kama_pgtblprint((pagetable_t)child, depth + 1);
+            }
+        }
+    }
+
+    return 0;
+}
+// page table 0x8000A000
+// ..0: pte 0x0000000020000001 pa 0x20000000
+// .. ..1: pte 0x00000000400003 pa 0x40000000
+// .. .. ..2: pte 0x00000000800007 pa 0x80000000
+
+
+// 打印页表
+int kama_vmprint(pagetable_t pagetable) {
+    printf("page table %p\n", pagetable);
+    return kama_pgtblprint(pagetable, 0);
 }
