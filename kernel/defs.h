@@ -183,6 +183,8 @@ pagetable_t     kama_kvminit_newpgtbl();               //为每个进程创建�
 void            kama_kvm_map_pagetable(pagetable_t pgtbl); //为内核页表添加映射的函数声明
 void
 kama_kvm_free_kernelpgtbl(pagetable_t pagetable);           // 释放内核页表中所有映射的函数声明
+int             kama_kvmcopymappings(pagetable_t src, pagetable_t dst, uint64 start, uint64 sz);
+uint64          kama_kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);
