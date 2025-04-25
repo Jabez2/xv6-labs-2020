@@ -1,3 +1,12 @@
+// kernel/riscv.h
+#define PTE_V (1L << 0) // valid
+#define PTE_R (1L << 1)
+#define PTE_W (1L << 2)
+#define PTE_X (1L << 3)
+#define PTE_U (1L << 4) // 1 -> user can access
+#define PTE_COW (1L << 8)  
+// 是否为COW页，使用页表项 flags 中保留的第 8 位表示
+//（页表项 flags 中，第 8、9、10 位均为保留给操作系统使用的位，可以用作任意自定义用途）
 // which hart (core) is this?
 static inline uint64
 r_mhartid()

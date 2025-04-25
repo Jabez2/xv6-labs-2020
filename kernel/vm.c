@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"			// 加上两个需要的头文件
 
 /*
  * the kernel's page table.
@@ -12,7 +14,6 @@
 pagetable_t kernel_pagetable;
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
-
 extern char trampoline[]; // trampoline.S
 
 /*
@@ -87,7 +88,32 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   }
   return &pagetable[PX(0, va)];
 }
+//判断页面是否是之前惰性分配的地址，是的话返回1
+int kama_uvmshouldallocate(uint64 va) {
+    pte_t* pte;
+    struct proc* p = myproc();
 
+    return va < p->sz                   //确保地址在进程的内存大小范围内
+        && PGROUNDDOWN(va) != r_sp()    //确保地址不在 guard page 中
+        && (((pte = walk(p->pagetable, va, 0)) == 0) || ((*pte & PTE_V) == 0));     //确保页表项确实不存在
+}
+
+void kama_uvmlazyallocate(uint64 va) {
+    struct proc* p = myproc();
+    char* pa = kalloc();    //分配物理地址
+    if (pa == 0) {
+        printf("lazy alloc: out of memory\n");
+        p->killed = 1;
+    }
+    else {
+        memset(pa, 0, PGSIZE);
+        if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, PTE_W | PTE_X | PTE_R | PTE_U) != 0) {      //映射物理地址
+            printf("lazy alloc: failed to map page\n");
+            kfree(pa);
+            p->killed = 1;
+        }
+    }
+}
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
@@ -181,9 +207,11 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      //panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      //panic("uvmunmap: not mapped");
+      continue;
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -311,22 +339,35 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
+      
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+      
     pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
-    }
+    // 清除父进程中所有PTE的PTE_W位，并且设置PTE_COW位，表示所在页是一个写时复制页（多个进程引用同个物理页）
+    // 如果该页本身就是不可写（只读），则不会添加这个标志位
+    if (*pte & PTE_W)
+        *pte = (*pte & ~PTE_W) | PTE_COW;
+
+    flags = PTE_FLAGS(*pte);        //获取当前父进程pte的标志位
+
+    //将父进程映射的物理页直接map到子进程中，权限保持和父进程一致（注意现在都是不可写，而且原本是可写的页会有新增的PTE_COW写时复制标志）
+    if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
+        goto err;
+
+    kama_krefpage((void*)pa);         //映射的物理页的引用数+1
+    // if((mem = kalloc()) == 0)  该部分为内存分配代码，因此需要去掉
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    //   goto err;
+    // }
   }
   return 0;
 
@@ -355,7 +396,8 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  if (kama_uvmshouldallocate(dstva)) // 如果没分配的虚拟地址则马上进行分配
+      kama_uvmlazyallocate(dstva);
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
@@ -380,7 +422,8 @@ int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  if (kama_uvmshouldallocate(srcva))
+      kama_uvmlazyallocate(srcva);
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
@@ -440,3 +483,4 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
